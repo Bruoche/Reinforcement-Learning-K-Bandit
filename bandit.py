@@ -21,7 +21,7 @@ def test_bandit_distribution():
 	plt.hist(test_tirages, bins=30)
 	plt.show()
 
-test_bandit_distribution()
+# test_bandit_distribution()
 
 DEFAULT_NB_BRAS = 10
 
@@ -44,10 +44,8 @@ class GreedyPlayer:
 
 	def get_action(self) -> int:
 		explore = random.uniform(0, 1) < self.random_action_chance
-		if explore:
-			return self._random_action()
-		else:
-			return self._greedy_action()
+		if explore: return self._random_action()
+		else: return self._greedy_action()
 
 	def _greedy_action(self) -> int:
 		debug("<< greeding >>")
@@ -88,4 +86,4 @@ def main():
 	for i in range(len(bandits.bandits)):
 		debug(f"Machine {i} is estimated at {player._evaluate(i)} (real: {bandits.bandits[i].avg}) with a total of {player.action_values[i]} gains for {player.action_counts[i]} actions")
 
-# main()
+main()
