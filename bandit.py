@@ -8,6 +8,8 @@ def debug(message):
 	if DEBUG:
 		print(message)
 
+# Ex1
+
 class Bandit:
 	def __init__(self):
 		self.avg = np.random.normal(0, 1)
@@ -23,6 +25,8 @@ def test_bandit_distribution():
 
 # test_bandit_distribution()
 
+# Ex2
+
 DEFAULT_NB_BRAS = 10
 
 class Ban10:
@@ -34,6 +38,8 @@ class Ban10:
 		
 	def play(self, index) -> int:
 		return self.bandits[index].play()
+
+# Ex3
 
 class GreedyPlayer:
 	def __init__(self, eps, nb_action = DEFAULT_NB_BRAS):
@@ -75,7 +81,7 @@ class GreedyPlayer:
 		self.action_values[action] += value
 		self.action_counts[action] += 1
 
-def main():
+def test_greedy():
 	bandits = Ban10()
 	player = GreedyPlayer(0.1, len(bandits.bandits))
 	for _ in range(1000):
@@ -86,4 +92,60 @@ def main():
 	for i in range(len(bandits.bandits)):
 		debug(f"Machine {i} is estimated at {player._evaluate(i)} (real: {bandits.bandits[i].avg}) with a total of {player.action_values[i]} gains for {player.action_counts[i]} actions")
 
-main()
+# test_greedy()
+
+# Ex4
+
+class DataByTurn:
+	def __init__(self):
+		self.data = []
+		self.turn = []
+
+	def append(self, data):
+		self.data.append(data)
+		self.turn.append(len(self.turn))
+
+	def show_graph(self, map = lambda value: value):
+		data = [map(value) for value in self.data]
+		plt.plot(self.turn, data)
+		plt.show()
+
+def graph_reward(nb_turns = 1000, nb_players = 2000):
+	bandits = Ban10()
+	players = [GreedyPlayer(0.1, len(bandits.bandits)) for _ in range(nb_players)]
+	rewards_per_turn = DataByTurn()
+	for _ in range(nb_turns):
+		turn_rewards = []
+		for player in players:
+			action = player.get_action()
+			reward = bandits.play(action)
+			player.reward(action, reward)
+			turn_rewards.append(reward)
+		rewards_per_turn.append(turn_rewards)
+	rewards_per_turn.show_graph(map_avg)
+
+def map_avg(turn_values: float) -> float:
+	if len(turn_values) <= 0: return 0
+	total = 0
+	for value in turn_values:
+		total += value
+	return total/len(turn_values)
+
+# graph_reward()
+
+def graph_optimal(nb_turns = 1000, nb_players = 2000):
+	bandits = Ban10()
+	players = [GreedyPlayer(0.1, len(bandits.bandits)) for _ in range(nb_players)]
+	optimals_per_turn = DataByTurn()
+	for _ in range(nb_turns):
+		optimals = 0
+		for player in players:
+			action = player.get_action()
+			reward = bandits.play(action)
+			player.reward(action, reward)
+			if action==bandits.best_bandit:
+				optimals += 1
+		optimals_per_turn.append(optimals/nb_players)
+	optimals_per_turn.show_graph()
+
+graph_optimal()
