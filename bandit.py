@@ -2,6 +2,11 @@ import random
 import numpy as np
 import matplotlib.pyplot as plt
 
+
+if __name__ == "__main__":
+    random.seed(67)
+    np.random.seed(67)
+
 DEBUG = False
 
 def debug(message):
@@ -153,31 +158,26 @@ def graph_optimal(nb_turns = 1000, nb_players = 2000):
 # Ex5
 
 class OptimistGreedyPlayer(GreedyPlayer):
-    def __init__(self, nb_action = DEFAULT_NB_BRAS):
-        super().__init__(0, nb_action)
+    def __init__(self, eps = 0, nb_action = DEFAULT_NB_BRAS):
+        super().__init__(eps, nb_action)
         self.action_values = [5 for _ in range(nb_action)]
 
-    def reward(self, action, value):
-        if self.action_counts[action] == 0:
-            self.action_values[action] = 0
-        super().reward(action, value)
-
 def graph_optimist(nb_turns = 1000, nb_players = 2000):
-    bandits = [Ban10() for _ in range(nb_players)]
-    players = [[GreedyPlayer(0.1), OptimistGreedyPlayer()] for _ in range(nb_players)]
+    bandits = Ban10()
+    players = [[GreedyPlayer(0.1), OptimistGreedyPlayer(0)] for _ in range(nb_players)]
     rewards_per_turn = [DataByTurn(), DataByTurn()]
     optimals_per_turn = [DataByTurn(), DataByTurn()]
 
     for _ in range(nb_turns):
         turn_rewards = [0, 0]
         turn_optimals = [0, 0]
-        for bandit, pair in zip(bandits, players):
+        for pair in players:
             for i, player in enumerate(pair):
                 action = player.get_action()
-                reward = bandit.play(action).item()
+                reward = bandits.play(action).item()
                 player.reward(action, reward)
                 turn_rewards[i] += reward
-                if action == bandit.best_bandit:
+                if action == bandits.best_bandit:
                     turn_optimals[i] += 1
         for i in range(2):
             rewards_per_turn[i].append(turn_rewards[i] / nb_players)
@@ -190,6 +190,7 @@ def graph_optimist(nb_turns = 1000, nb_players = 2000):
     plt.xlabel("Tour")
     plt.ylabel("Récompense moyenne")
     plt.legend()
+    plt.show()
 
     plt.figure()
     for i in range(2):
@@ -200,8 +201,3 @@ def graph_optimist(nb_turns = 1000, nb_players = 2000):
     plt.show()
 
 graph_optimist()
-
-if __name__ == "__main__":
-    random.seed(42)
-    np.random.seed(42)
-    graph_optimist()
