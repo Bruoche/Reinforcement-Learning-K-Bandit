@@ -148,4 +148,60 @@ def graph_optimal(nb_turns = 1000, nb_players = 2000):
 		optimals_per_turn.append(optimals/nb_players)
 	optimals_per_turn.show_graph()
 
-graph_optimal()
+# graph_optimal()
+
+# Ex5
+
+class OptimistGreedyPlayer(GreedyPlayer):
+    def __init__(self, nb_action = DEFAULT_NB_BRAS):
+        super().__init__(0, nb_action)
+        self.action_values = [5 for _ in range(nb_action)]
+
+    def reward(self, action, value):
+        if self.action_counts[action] == 0:
+            self.action_values[action] = 0
+        super().reward(action, value)
+
+def graph_optimist(nb_turns = 1000, nb_players = 2000):
+    bandits = [Ban10() for _ in range(nb_players)]
+    players = [[GreedyPlayer(0.1), OptimistGreedyPlayer()] for _ in range(nb_players)]
+    rewards_per_turn = [DataByTurn(), DataByTurn()]
+    optimals_per_turn = [DataByTurn(), DataByTurn()]
+
+    for _ in range(nb_turns):
+        turn_rewards = [0, 0]
+        turn_optimals = [0, 0]
+        for bandit, pair in zip(bandits, players):
+            for i, player in enumerate(pair):
+                action = player.get_action()
+                reward = bandit.play(action).item()
+                player.reward(action, reward)
+                turn_rewards[i] += reward
+                if action == bandit.best_bandit:
+                    turn_optimals[i] += 1
+        for i in range(2):
+            rewards_per_turn[i].append(turn_rewards[i] / nb_players)
+            optimals_per_turn[i].append(100 * turn_optimals[i] / nb_players)
+
+    labels = ["Epsilon-greedy (epsilon = 0.1)", "Greedy optimiste (epsilon = 0)"]
+    plt.figure()
+    for i in range(2):
+        plt.plot(rewards_per_turn[i].turn, rewards_per_turn[i].data, label=labels[i])
+    plt.xlabel("Tour")
+    plt.ylabel("Récompense moyenne")
+    plt.legend()
+
+    plt.figure()
+    for i in range(2):
+        plt.plot(optimals_per_turn[i].turn, optimals_per_turn[i].data, label=labels[i])
+    plt.xlabel("Tour")
+    plt.ylabel("Choix optimaux (%)")
+    plt.legend()
+    plt.show()
+
+graph_optimist()
+
+if __name__ == "__main__":
+    random.seed(42)
+    np.random.seed(42)
+    graph_optimist()
