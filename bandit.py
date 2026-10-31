@@ -1,11 +1,11 @@
 import random
 import numpy as np
 import matplotlib.pyplot as plt
-
+from collections.abc import Callable
 
 if __name__ == "__main__":
-    random.seed(67)
-    np.random.seed(67)
+	random.seed(67)
+	np.random.seed(67)
 
 DEBUG = False
 
@@ -54,12 +54,12 @@ class GreedyPlayer:
 		self.action_counts = [0 for _ in range(nb_action)] # N : Nombre de fois où chaque action à été choisie
 
 	def get_action(self) -> int:
-		explore = random.uniform(0, 1) < self.random_action_chance
+		explore = random.random() < self.random_action_chance
 		if explore: return self._random_action()
 		else: return self._greedy_action()
 
 	def _greedy_action(self) -> int:
-		debug("<< greeding >>")
+		# debug("<< greeding >>")
 		candidates = []
 		best = 0
 		for i in range(len(self.action_counts)):
@@ -115,7 +115,7 @@ class DataByTurn:
 		plt.plot(self.turn, data)
 		plt.show()
 
-def graph_reward(nb_turns = 1000, nb_players = 2000):
+def graph_reward(eps = 0.1, nb_turns = 1000, nb_players = 2000):
 	bandits = Ban10()
 	players = [GreedyPlayer(0.1, len(bandits.bandits)) for _ in range(nb_players)]
 	rewards_per_turn = DataByTurn()
@@ -155,49 +155,87 @@ def graph_optimal(nb_turns = 1000, nb_players = 2000):
 
 # graph_optimal()
 
+
+class Graph:
+	def __init__(self, 
+		ylabel: str,
+		nb_player_types: int, 
+		process_player_turn_val: Callable[[float, int, float, Ban10], float], 
+		process_turn_final_val = lambda value, nb_players: value/nb_players, 
+		initial_val = 0
+	):
+		self.ylabel = ylabel
+		self.nb_player_types = nb_player_types
+		self.data_per_turn_per_player_type = [DataByTurn() for _ in range(nb_player_types)]
+		self.initial_val = initial_val
+		self.turn_values_per_types = []
+		self.nb_turn_per_types = []
+		self.process_player_turn = process_player_turn_val
+		self.end_turn = process_turn_final_val
+
+	def reset_values(self):
+		self.turn_values_per_types = [self.initial_val for _ in range(self.nb_player_types)]
+		self.nb_turn_per_types = [0 for _ in range(self.nb_player_types)]
+
+	def process_turn(self, player_type: int, bandit_choosen: int, reward: float, bandits: Ban10):
+		self.turn_values_per_types[player_type] = self.process_player_turn(self.turn_values_per_types[player_type], bandit_choosen, reward, bandits)
+		self.nb_turn_per_types[player_type] += 1
+
+	def process_final_value(self, player_type: int):
+		self.data_per_turn_per_player_type[player_type].append(self.end_turn(self.turn_values_per_types[player_type], self.nb_turn_per_types[player_type]))
+
+	def x(self, player_type: int) -> list[int]:
+		return self.data_per_turn_per_player_type[player_type].turn
+
+	def y(self, player_type: int) -> list[float]:
+		return self.data_per_turn_per_player_type[player_type].data
+
+def process_player_rewards(current_val: float, _: int, reward: float, __: Ban10) -> float:
+	return current_val + reward
+
+def process_player_optimal(current_val: float, bandit_choosen: int, _: float, bandits: Ban10) -> float:
+	if bandit_choosen == bandits.best_bandit:
+		return current_val + 1
+	return current_val
+
+def all_graphs(player_constructors: Callable[[], GreedyPlayer], nb_turns = 1000, nb_players = 2000):
+	bandits = Ban10()
+	player_types = [[player_constructor() for _ in range(nb_players)] for player_constructor in player_constructors]
+	graphs = [
+		Graph("Récompense moyenne", nb_players, process_player_rewards),
+		Graph("Choix optimaux (%)", nb_players, process_player_optimal)
+	]
+	for _ in range(nb_turns):
+		for i, players in enumerate(player_types):
+			for graph in graphs:
+				graph.reset_values()
+			for player in players:
+				action = player.get_action()
+				reward = bandits.play(action).item()
+				player.reward(action, reward)
+				for graph in graphs:
+					graph.process_turn(i, action, reward, bandits)
+			for graph in graphs:
+				graph.process_final_value(i)
+	for graph in graphs:
+		plt.figure()
+		labels = []
+		for i, player_type in enumerate(player_types):
+			labels.append(f"{player_type[0].__class__.__name__} (epsilon = {player_type[0].random_action_chance})")
+			plt.plot(graph.x(i), graph.y(i), label=labels[i])
+		plt.xlabel("Tour")
+		plt.ylabel(graph.ylabel)
+		plt.legend()
+		plt.show()
+
+all_graphs([lambda: GreedyPlayer(0), lambda: GreedyPlayer(0.01), lambda: GreedyPlayer(0.1)])
+
 # Ex5
 
 class OptimistGreedyPlayer(GreedyPlayer):
-    def __init__(self, eps = 0, nb_action = DEFAULT_NB_BRAS):
-        super().__init__(eps, nb_action)
-        self.action_values = [5 for _ in range(nb_action)]
+	def __init__(self, eps = 0.1, nb_action = DEFAULT_NB_BRAS):
+		super().__init__(eps, nb_action)
+		self.action_values = [5 for _ in range(nb_action)]
 
-def graph_optimist(nb_turns = 1000, nb_players = 2000):
-    bandits = Ban10()
-    players = [[GreedyPlayer(0.1), OptimistGreedyPlayer(0)] for _ in range(nb_players)]
-    rewards_per_turn = [DataByTurn(), DataByTurn()]
-    optimals_per_turn = [DataByTurn(), DataByTurn()]
-
-    for _ in range(nb_turns):
-        turn_rewards = [0, 0]
-        turn_optimals = [0, 0]
-        for pair in players:
-            for i, player in enumerate(pair):
-                action = player.get_action()
-                reward = bandits.play(action).item()
-                player.reward(action, reward)
-                turn_rewards[i] += reward
-                if action == bandits.best_bandit:
-                    turn_optimals[i] += 1
-        for i in range(2):
-            rewards_per_turn[i].append(turn_rewards[i] / nb_players)
-            optimals_per_turn[i].append(100 * turn_optimals[i] / nb_players)
-
-    labels = ["Epsilon-greedy (epsilon = 0.1)", "Greedy optimiste (epsilon = 0)"]
-    plt.figure()
-    for i in range(2):
-        plt.plot(rewards_per_turn[i].turn, rewards_per_turn[i].data, label=labels[i])
-    plt.xlabel("Tour")
-    plt.ylabel("Récompense moyenne")
-    plt.legend()
-    plt.show()
-
-    plt.figure()
-    for i in range(2):
-        plt.plot(optimals_per_turn[i].turn, optimals_per_turn[i].data, label=labels[i])
-    plt.xlabel("Tour")
-    plt.ylabel("Choix optimaux (%)")
-    plt.legend()
-    plt.show()
-
-graph_optimist()
+epsilon = 0.1
+# all_graphs([lambda: GreedyPlayer(epsilon), lambda: OptimistGreedyPlayer(epsilon)])
