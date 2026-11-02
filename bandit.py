@@ -42,7 +42,7 @@ class Ban10:
 	def __init__(self, nb_bras=DEFAULT_NB_BRAS):
 		self.bandits = [self._make_bandit() for _ in range(nb_bras)]
 		for i, bandit in enumerate(self.bandits):
-			debug(f"Bandit {i}: {bandit.avg}{" (best)" if i == self.best_bandit() else ""}")
+			debug(f"Bandit {i}: {bandit._avg()}{" (best)" if i == self.best_bandit() else ""}")
 		
 	def play(self, index) -> int:
 		return self.bandits[index].play()
@@ -95,6 +95,9 @@ class GreedyPlayer:
 		self.action_values[action] += value
 		self.action_counts[action] += 1
 
+	def to_string(self) -> str:
+		return f"{self.__class__.__name__} (epsilon = {self.random_action_chance})"
+
 def test_player(player: GreedyPlayer):
 	bandits = Ban10(player.nb_action)
 	for _ in range(1000):
@@ -103,7 +106,7 @@ def test_player(player: GreedyPlayer):
 		player.reward(action, reward)
 		print(f"Machine {action} gave {reward} : {"Optimal" if action==bandits.best_bandit() else f"Should pick {bandits.best_bandit()}"}")
 	for i in range(len(bandits.bandits)):
-		debug(f"Machine {i} is estimated at {player._evaluate(i)} (real: {bandits.bandits[i].avg}) with a total of {player.action_values[i]} gains for {player.action_counts[i]} actions")
+		debug(f"Machine {i} is estimated at {player._evaluate(i)} (real: {bandits.bandits[i]._avg()}) with a total of {player.action_values[i]} gains for {player.action_counts[i]} actions")
 
 # test_player(GreedyPlayer(0.1, len(bandits.bandits)))
 
@@ -122,47 +125,6 @@ class DataByTurn:
 		data = [map(value) for value in self.data]
 		plt.plot(self.turn, data)
 		plt.show()
-
-def graph_reward(eps = 0.1, nb_turns = 1000, nb_players = 2000):
-	bandits = Ban10()
-	players = [GreedyPlayer(0.1, len(bandits.bandits)) for _ in range(nb_players)]
-	rewards_per_turn = DataByTurn()
-	for _ in range(nb_turns):
-		turn_rewards = []
-		for player in players:
-			action = player.get_action()
-			reward = bandits.play(action)
-			player.reward(action, reward)
-			turn_rewards.append(reward)
-		rewards_per_turn.append(turn_rewards)
-	rewards_per_turn.show_graph(map_avg)
-
-def map_avg(turn_values: float) -> float:
-	if len(turn_values) <= 0: return 0
-	total = 0
-	for value in turn_values:
-		total += value
-	return total/len(turn_values)
-
-# graph_reward()
-
-def graph_optimal(nb_turns = 1000, nb_players = 2000):
-	bandits = Ban10()
-	players = [GreedyPlayer(0.1, len(bandits.bandits)) for _ in range(nb_players)]
-	optimals_per_turn = DataByTurn()
-	for _ in range(nb_turns):
-		optimals = 0
-		for player in players:
-			action = player.get_action()
-			reward = bandits.play(action)
-			player.reward(action, reward)
-			if action==bandits.best_bandit():
-				optimals += 1
-		optimals_per_turn.append(optimals/nb_players)
-	optimals_per_turn.show_graph()
-
-# graph_optimal()
-
 
 class Graph:
 	def __init__(self, 
@@ -229,7 +191,7 @@ def all_graphs(player_constructors: Callable[[], GreedyPlayer], bandits = Ban10(
 		plt.figure()
 		labels = []
 		for type_index, players in enumerate(player_types):
-			labels.append(f"{players[0].__class__.__name__} (epsilon = {players[0].random_action_chance})")
+			labels.append(players[0].to_string())
 			plt.plot(graph.x(type_index), graph.y(type_index), label=labels[type_index])
 		plt.xlabel("Tour")
 		plt.ylabel(graph.ylabel)
@@ -266,12 +228,15 @@ class UCBGreedyPlayer(GreedyPlayer):
 		current_turn = sum(self.action_counts) + len(self.action_counts) # On prétend que chaque machine a été tiré une fois
 		return math.log(current_turn)/(self.action_counts[machine]+1) # log() so it always explore but less and less frequently
 
+	def to_string(self) -> str:
+		return f"{self.__class__.__name__} (epsilon = {self.random_action_chance}; c = {self.coeff_exploration})"
+
 # test_player(UCBGreedyPlayer(1))
 
 epsilon = 0.1
 # all_graphs([lambda: OptimistGreedyPlayer(epsilon), lambda: UCBGreedyPlayer(1, epsilon)])
 
-# Ex7 - Bonus
+# Ex7 (Bonus)
 
 class MovingBandit(Bandit):
 	def __init__(self, max_amplitude = 2):
@@ -300,7 +265,23 @@ def test_moving_bandit():
 # test_moving_bandit()
 
 class MovingBan10(Ban10):
-	def _make_bandit(self):
-		return MovingBandit()
+	def __init__(self, amplitude = 2, nb_bras=DEFAULT_NB_BRAS):
+		self.amplitude = amplitude
+		super().__init__(nb_bras)
 
-all_graphs([lambda: GreedyPlayer(0.2), lambda: GreedyPlayer(0.1), lambda: GreedyPlayer(0.01), lambda: GreedyPlayer(0)], MovingBan10())
+	def _make_bandit(self):
+		return MovingBandit(self.amplitude)
+
+# GreedyPlayer
+# all_graphs([lambda: GreedyPlayer(0.2), lambda: GreedyPlayer(0.1), lambda: GreedyPlayer(0.01), lambda: GreedyPlayer(0)], MovingBan10(5)) # -> 0.1
+# all_graphs([lambda: GreedyPlayer(0.15), lambda: GreedyPlayer(0.1), lambda: GreedyPlayer(0.05)], MovingBan10(5)) # ~0.05
+# all_graphs([lambda: GreedyPlayer(0.1), lambda: GreedyPlayer(0.075), lambda: GreedyPlayer(0.05)], MovingBan10(5)) # -> 0.05
+
+# Optimist
+# all_graphs([lambda: OptimistGreedyPlayer(0), lambda: OptimistGreedyPlayer(0.05), lambda: OptimistGreedyPlayer(0.1)], MovingBan10(5)) # -> 0.01
+
+# UCB
+# all_graphs([lambda: UCBGreedyPlayer(0.1), lambda: UCBGreedyPlayer(0.2), lambda: UCBGreedyPlayer(0.5), lambda: UCBGreedyPlayer(1)], MovingBan10(5)) # -> [0.5;1]
+# all_graphs([lambda: UCBGreedyPlayer(0.5), lambda: UCBGreedyPlayer(0.75), lambda: UCBGreedyPlayer(1)], MovingBan10(5)) # -> 1
+
+all_graphs([lambda: GreedyPlayer(0.05), lambda: OptimistGreedyPlayer(0.01), lambda: UCBGreedyPlayer(1)], MovingBan10(5))
