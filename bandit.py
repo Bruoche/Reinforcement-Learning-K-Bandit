@@ -112,20 +112,6 @@ def test_player(player: GreedyPlayer):
 
 # Ex4
 
-class DataByTurn:
-	def __init__(self):
-		self.data = []
-		self.turn = []
-
-	def append(self, data):
-		self.data.append(data)
-		self.turn.append(len(self.turn))
-
-	def show_graph(self, map = lambda value: value):
-		data = [map(value) for value in self.data]
-		plt.plot(self.turn, data)
-		plt.show()
-
 class Graph:
 	def __init__(self, 
 		ylabel: str,
@@ -136,7 +122,7 @@ class Graph:
 	):
 		self.ylabel = ylabel
 		self.nb_player_types = nb_player_types
-		self.data_per_turn_per_player_type = [DataByTurn() for _ in range(nb_player_types)]
+		self.data_per_turn_per_player_type = [[] for _ in range(nb_player_types)]
 		self.initial_val = initial_val
 		self.turn_values_per_types = []
 		self.nb_turn_per_types = []
@@ -155,10 +141,10 @@ class Graph:
 		self.data_per_turn_per_player_type[player_type].append(self.end_turn(self.turn_values_per_types[player_type], self.nb_turn_per_types[player_type]))
 
 	def x(self, player_type: int) -> list[int]:
-		return self.data_per_turn_per_player_type[player_type].turn
+		return [i for i in range(len(self.data_per_turn_per_player_type[player_type]))]
 
 	def y(self, player_type: int) -> list[float]:
-		return self.data_per_turn_per_player_type[player_type].data
+		return self.data_per_turn_per_player_type[player_type]
 
 def process_player_rewards(current_val: float, _: int, reward: float, __: Ban10) -> float:
 	return current_val + reward
@@ -256,7 +242,7 @@ class MovingBandit(Bandit):
 
 def test_moving_bandit():
 	bandit = MovingBandit()
-	averages = DataByTurn()
+	averages = Graph("average reward")
 	for _ in range(100):
 		averages.append(bandit._avg())
 		bandit.play()
